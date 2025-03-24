@@ -17,9 +17,12 @@ const sql = neon(process.env.POSTGRES_URL);
 
 export async function fetchRevenue(): Promise<Revenue[]> {
   try {
+    console.log("Fetching revenue data...");
+    await new Promise((resolve) => setTimeout(resolve, 3000));
     const result = await sql`
     SELECT month, revenue FROM revenue
   `;
+    console.log("Data fetch completed after 3 seconds.");
 
     return result.map((row) => ({
       month: String(row.month),
@@ -51,14 +54,13 @@ export async function fetchLatestInvoices(): Promise<LatestInvoiceRaw[]> {
       name: invoice.name,
       image_url: invoice.image_url ?? null,
       email: invoice.email,
-      amount: invoice.amount,  // ensure it's a number, no conversion to string
+      amount: invoice.amount, // ensure it's a number, no conversion to string
     }));
   } catch (error) {
     console.error("Database Error:", error);
     throw new Error("Failed to fetch the latest invoices.");
   }
 }
-
 
 export async function fetchCardData() {
   try {
