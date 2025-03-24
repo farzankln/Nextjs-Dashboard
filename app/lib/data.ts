@@ -15,42 +15,50 @@ if (!process.env.POSTGRES_URL) {
 
 const sql = neon(process.env.POSTGRES_URL);
 
-export async function fetchRevenue() {
+export async function fetchRevenue(): Promise<Revenue[]> {
   try {
+    const result = await sql`
+    SELECT month, revenue FROM revenue
+  `;
 
-    console.log('Fetching revenue data...');
-    await new Promise((resolve) => setTimeout(resolve, 3000));
-
-    const data = await sql<Revenue[]>`SELECT * FROM revenue`;
-
-    console.log('Data fetch completed after 3 seconds.');
-
-    return data;
+    return result.map((row) => ({
+      month: String(row.month),
+      revenue: Number(row.revenue),
+    }));
   } catch (error) {
     console.error("Database Error:", error);
     throw new Error("Failed to fetch revenue data.");
   }
 }
 
-export async function fetchLatestInvoices() {
+export async function fetchLatestInvoices(): Promise<LatestInvoiceRaw[]> {
   try {
-    const data = await sql<LatestInvoiceRaw[]>`
-      SELECT invoices.amount, customers.name, customers.image_url, customers.email, invoices.id
-      FROM invoices
-      JOIN customers ON invoices.customer_id = customers.id
-      ORDER BY invoices.date DESC
-      LIMIT 5`;
+    const result = await sql`
+    SELECT 
+      invoices.id,  
+      customers.name,
+      customers.image_url,
+      customers.email,
+      invoices.amount
+    FROM invoices
+    JOIN customers ON invoices.customer_id = customers.id
+    ORDER BY invoices.date DESC
+    LIMIT 5
+  `;
 
-    const latestInvoices = data.map((invoice) => ({
-      ...invoice,
-      amount: formatCurrency(invoice.amount),
+    return result.map((invoice) => ({
+      id: invoice.id,
+      name: invoice.name,
+      image_url: invoice.image_url ?? null,
+      email: invoice.email,
+      amount: invoice.amount,  // ensure it's a number, no conversion to string
     }));
-    return latestInvoices;
   } catch (error) {
     console.error("Database Error:", error);
     throw new Error("Failed to fetch the latest invoices.");
   }
 }
+
 
 export async function fetchCardData() {
   try {
@@ -93,9 +101,10 @@ export async function fetchFilteredInvoices(
   currentPage: number
 ) {
   const offset = (currentPage - 1) * ITEMS_PER_PAGE;
+  const search = `%${query}%`;
 
   try {
-    const invoices = await sql<InvoicesTable[]>`
+    const result = await sql`
       SELECT
         invoices.id,
         invoices.amount,
@@ -107,16 +116,16 @@ export async function fetchFilteredInvoices(
       FROM invoices
       JOIN customers ON invoices.customer_id = customers.id
       WHERE
-        customers.name ILIKE ${`%${query}%`} OR
-        customers.email ILIKE ${`%${query}%`} OR
-        invoices.amount::text ILIKE ${`%${query}%`} OR
-        invoices.date::text ILIKE ${`%${query}%`} OR
-        invoices.status ILIKE ${`%${query}%`}
+        customers.name ILIKE ${search} OR
+        customers.email ILIKE ${search} OR
+        invoices.amount::text ILIKE ${search} OR
+        invoices.date::text ILIKE ${search} OR
+        invoices.status ILIKE ${search}
       ORDER BY invoices.date DESC
       LIMIT ${ITEMS_PER_PAGE} OFFSET ${offset}
     `;
 
-    return invoices;
+    return result as InvoicesTable[];
   } catch (error) {
     console.error("Database Error:", error);
     throw new Error("Failed to fetch invoices.");
@@ -144,25 +153,28 @@ export async function fetchInvoicesPages(query: string) {
   }
 }
 
-export async function fetchInvoiceById(id: string) {
+export async function fetchInvoiceById(
+  id: string
+): Promise<InvoiceForm | null> {
   try {
-    const data = await sql<InvoiceForm[]>`
-      SELECT
-        invoices.id,
-        invoices.customer_id,
-        invoices.amount,
-        invoices.status
-      FROM invoices
-      WHERE invoices.id = ${id};
-    `;
+    const result = await sql`
+    SELECT
+      invoices.id,
+      invoices.customer_id,
+      invoices.amount,
+      invoices.status
+    FROM invoices
+    WHERE invoices.id = ${id}
+  `;
 
-    const invoice = data.map((invoice) => ({
-      ...invoice,
-      // Convert amount from cents to dollars
-      amount: invoice.amount / 100,
-    }));
+    if (result.length === 0) return null;
 
-    return invoice[0];
+    return {
+      id: result[0].id,
+      customer_id: result[0].customer_id,
+      amount: Number(result[0].amount) / 100,
+      status: result[0].status,
+    };
   } catch (error) {
     console.error("Database Error:", error);
     throw new Error("Failed to fetch invoice.");
@@ -171,14 +183,14 @@ export async function fetchInvoiceById(id: string) {
 
 export async function fetchCustomers() {
   try {
-    const customers = await sql<CustomerField[]>`
+    const customers = await sql`
       SELECT
         id,
         name
       FROM customers
       ORDER BY name ASC
     `;
-
+    if (customers.length === 0) return [];
     return customers;
   } catch (err) {
     console.error("Database Error:", err);
@@ -188,7 +200,7 @@ export async function fetchCustomers() {
 
 export async function fetchFilteredCustomers(query: string) {
   try {
-    const data = await sql<CustomersTableType[]>`
+    const data = await sql`
 		SELECT
 		  customers.id,
 		  customers.name,
