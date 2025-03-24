@@ -1,7 +1,6 @@
 import { neon } from "@neondatabase/serverless";
 import {
   CustomerField,
-  CustomersTableType,
   InvoiceForm,
   InvoicesTable,
   LatestInvoiceRaw,
