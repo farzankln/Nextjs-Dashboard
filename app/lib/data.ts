@@ -183,17 +183,19 @@ export async function fetchInvoiceById(
   }
 }
 
-export async function fetchCustomers() {
+export async function fetchCustomers(): Promise<CustomerField[]> {
   try {
     const customers = await sql`
-      SELECT
-        id,
-        name
-      FROM customers
+      SELECT id, name FROM customers
       ORDER BY name ASC
     `;
+
     if (customers.length === 0) return [];
-    return customers;
+
+    return customers.map((customer) => ({
+      id: String(customer.id),
+      name: customer.name,
+    }));
   } catch (err) {
     console.error("Database Error:", err);
     throw new Error("Failed to fetch all customers.");
